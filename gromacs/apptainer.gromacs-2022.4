@@ -1,0 +1,37 @@
+Bootstrap: docker
+From: nvidia/cuda:12.0.0-devel-ubuntu22.04
+Stage: build
+
+%labels
+  Maintainer ben.warren@plantandfood.co.nz
+  Version 2022.4
+
+%post
+  export DEBIAN_FRONTEND=noninteractive
+  mkdir /build && cd /build
+  ## Download build prerequisites
+  apt-get update
+  apt-get -y install cmake gcc-12 g++-12 curl
+  ## Build gromacs
+  curl -sL ftp://ftp.gromacs.org/pub/gromacs/gromacs-2022.4.tar.gz | tar xz
+  mkdir gromacs-2022.4/build
+  cd gromacs-2022.4/build
+  cmake .. -DGMX_BUILD_OWN_FFTW=ON -DGMX_GPU=CUDA -DGMX_FFT_LIBRARY=fftw3
+  make -j 4
+  make install
+
+## FINAL IMAGE
+Bootstrap: docker
+From: nvidia/cuda:12.0.0-runtime-ubuntu22.04
+Stage: final
+
+%files from build
+  /usr/local/gromacs /usr/local/gromacs
+
+%post
+  ## install libogmp
+  apt-get update && apt-get -y install libgomp1
+
+%runscript
+  . /usr/local/gromacs/bin/GMXRC.bash
+  gmx "$@"
